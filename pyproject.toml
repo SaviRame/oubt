@@ -3,7 +3,16 @@ name = "aws-basics"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "boto3>=1.42.16",
+    "pandas>=2.3.3",
+    "pyarrow>=22.0.0",
+    "sqlalchemy>=2.0.45",
+]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "ipykernel>=7.1.0",
 ]
