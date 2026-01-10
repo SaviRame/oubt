@@ -24,7 +24,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::<YOUR_ACCOUNT_ID>:role/<YOUR_GITHUB_OIDC_ROLE>
+          role-to-assume: arn:aws:iam::765017559809:role/GitHubActionsDay11SqlDeployRole
           aws-region: us-east-1
 
       - name: Sync SQL to S3
