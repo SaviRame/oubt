@@ -29,11 +29,13 @@ jobs:
 
       - name: Sync SQL to S3
         run: |
-          aws s3 sync sql s3://day11-12-sql-glue/sql --delete
+          aws s3 sync day-12-13/sql s3://day11-12-sql-glue/sql --delete
 
+ 
       - name: Upload Glue script to S3
         run: |
-          aws s3 cp glue/run_athena_sql.py s3://day11-12-sql-glue/glue/run_athena_sql.py
+          aws s3 cp day-12-13/glue/run-athena-glue.py s3://day11-12-sql-glue/glue/run-athena-glue.py
+
 
       - name: Start Glue Job
         run: |
