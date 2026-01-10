@@ -1,0 +1,40 @@
+name: Deploy SQL to S3 and Run Glue
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "sql/**"
+      - "glue/**"
+      - ".github/workflows/**"
+
+jobs:
+  deploy-and-run:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write   # for OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Recommended: OIDC auth to AWS (no access keys stored)
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<YOUR_ACCOUNT_ID>:role/<YOUR_GITHUB_OIDC_ROLE>
+          aws-region: us-east-1
+
+      - name: Sync SQL to S3
+        run: |
+          aws s3 sync sql s3://day11-12-sql-glue/sql --delete
+
+      - name: Upload Glue script to S3
+        run: |
+          aws s3 cp glue/run_athena_sql.py s3://day11-12-sql-glue/glue/run_athena_sql.py
+
+      - name: Start Glue Job
+        run: |
+          aws glue start-job-run --job-name day11-12-athena-sql-runner
