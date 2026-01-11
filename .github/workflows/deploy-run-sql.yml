@@ -7,6 +7,7 @@ on:
       - "sql/**"
       - "glue/**"
       - ".github/workflows/**"
+  workflow_dispatch:
 
 jobs:
   deploy-and-run:
