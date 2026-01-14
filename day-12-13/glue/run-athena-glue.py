@@ -1,4 +1,3 @@
-import json
 import time
 import boto3
 
@@ -92,7 +91,9 @@ def run_test_file(relative_path: str, database: str):
     # Tests should be a single SELECT (your UNION ALL pattern)
     stmt_list = split_sql_statements(sql_text)
     if len(stmt_list) != 1:
-        raise RuntimeError(f"Test file must contain exactly 1 statement: {relative_path}")
+        raise RuntimeError(
+            f"Test file must contain exactly 1 statement: {relative_path}"
+        )
 
     qid = run_athena_query(stmt_list[0], database)
     wait_for_query(qid)

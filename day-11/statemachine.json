@@ -1,0 +1,144 @@
+{
+  "Comment": "Event Bridge-> Lambda S3 size checks -> Glue ETL+DQ -> SNS notify success/failure (inputs preserved via ResultPath)",
+  "StartAt": "InitDefaults",
+  "States": {
+    "InitDefaults": {
+      "Type": "Pass",
+      "ResultPath": "$",
+      "Parameters": {
+        "run_id.$": "$.run_id",
+        "out_prefix.$": "$.out_prefix",
+        "zones_input.$": "$.zones_input",
+        "transactions_input.$": "$.transactions_input",
+        "fail_on_dq.$": "$.fail_on_dq",
+        "validation": {
+          "ok": false
+        },
+        "glue_result": {
+          "Id": "N/A"
+        }
+      },
+      "Next": "ValidateInputs"
+    },
+    "ValidateInputs": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:765017559809:function:sf-s3-size-check",
+      "ResultPath": "$.validation",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 1
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "InputsValid?"
+    },
+    "InputsValid?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.validation.ok",
+          "BooleanEquals": true,
+          "Next": "RunGlueDQJob"
+        }
+      ],
+      "Default": "NotifyFailure"
+    },
+    "RunGlueDQJob": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "ResultPath": "$.glue_result",
+      "Parameters": {
+        "JobName": "day8-etl-quality",
+        "Arguments": {
+          "--S3_BUCKET": "day-7-glue-etl-quality",
+          "--LANDING_PREFIX": "landing-data",
+          "--OUT_PREFIX.$": "$.out_prefix",
+          "--ZONE_FILE": "zone/taxi_zone_lookup.csv",
+          "--TXN_PREFIX": "transactions",
+          "--ZONE_KEY_COL": "LocationID",
+          "--PU_COL": "PULocationID",
+          "--DO_COL": "DOLocationID",
+          "--FAIL_ON_DQ.$": "States.Format('{}', $.fail_on_dq)",
+          "--RUN_ID.$": "$.run_id"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 1
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.error",
+          "Next": "NotifyFailure"
+        }
+      ],
+      "Next": "NotifySuccess"
+    },
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:us-east-1:765017559809:pipeline-success-topic",
+        "Message": {
+          "status": "SUCCEEDED",
+          "run_id.$": "$.run_id",
+          "out_prefix.$": "$.out_prefix",
+          "zones_input.$": "$.zones_input",
+          "transactions_input.$": "$.transactions_input",
+          "validation.$": "$.validation",
+          "glue_job_name": "day8-etl-quality",
+          "glue_job_run_id.$": "$.glue_result.Id"
+        }
+      },
+      "Next": "SucceedState"
+    },
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:us-east-1:765017559809:pipeline-failure-topic",
+        "Message": {
+          "status": "FAILED",
+          "run_id.$": "$.run_id",
+          "out_prefix.$": "$.out_prefix",
+          "zones_input.$": "$.zones_input",
+          "transactions_input.$": "$.transactions_input",
+          "validation.$": "$.validation",
+          "error.$": "$.error",
+          "glue_job_name": "day8-etl-quality",
+          "glue_job_run_id.$": "$.glue_result.Id",
+          "hint": "Check dq-reports/ and quarantine/ under OUT_PREFIX (or Glue job logs) for details."
+        }
+      },
+      "Next": "FailState"
+    },
+    "SucceedState": {
+      "Type": "Succeed"
+    },
+    "FailState": {
+      "Type": "Fail",
+      "Error": "PipelineFailed",
+      "Cause": "Input validation failed or Glue ETL/DQ job failed"
+    }
+  }
+}
