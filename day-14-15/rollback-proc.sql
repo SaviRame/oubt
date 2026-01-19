@@ -89,3 +89,5 @@ SELECT
 FROM mdm.dim_customer
 WHERE customer_id = 'C002'
 ORDER BY version_number;
+
+

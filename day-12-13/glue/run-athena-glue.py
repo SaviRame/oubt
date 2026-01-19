@@ -30,6 +30,7 @@ REPAIR_TABLES = [
 
 
 def read_s3_text(bucket: str, key: str) -> str:
+    print(f"DEBUG: Attempting to read s3://{bucket}/{key}")
     obj = s3.get_object(Bucket=bucket, Key=key)
     return obj["Body"].read().decode("utf-8")
 

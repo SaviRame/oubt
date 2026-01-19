@@ -32,4 +32,4 @@ SELECT
 FROM analytics.taxi_trip_enriched
 GROUP BY 1,2,pickup_date;
 
-SHOW PARTITIONS analytics.taxi_trip_enriched;
+SELECT pickup_date, count(*) FROM analytics.daily_pickup_zone_metrics GROUP BY 1 ORDER BY 1;
