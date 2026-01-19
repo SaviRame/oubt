@@ -223,3 +223,6 @@ __marimo__/
 *.tfstate
 *.tfstate.backup
 .terraform.tfstate.lock.info
+
+# Intellij
+.idea/
