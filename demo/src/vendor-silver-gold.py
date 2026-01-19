@@ -11,7 +11,7 @@ from pyspark.sql.window import Window
 def get_glue_args_gold(argv):
     return getResolvedOptions(
         argv,
-        ["JOB_NAME", "silver_db", "gold_db", "ingestion_date", "write_mode"],
+        ["JOB_NAME", "silver_db", "gold_db", "ingestion_date"],
     )
 
 

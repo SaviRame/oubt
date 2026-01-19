@@ -1,19 +1,6 @@
 from awsglue.context import GlueContext
 from awsglue.job import Job
-from awsglue.utils import getResolvedOptions
 from pyspark.sql import SparkSession
-
-
-def get_glue_args(argv):
-    return getResolvedOptions(
-        argv,
-        [
-            "JOB_NAME",
-            "bronze_db",
-            "silver_db",
-            "ingestion_date"  # YYYY-MM-DD
-        ],
-    )
 
 
 def init_glue_job(job_name, args):

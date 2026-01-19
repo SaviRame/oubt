@@ -1,6 +1,7 @@
 import sys
 
-from glue_utils import get_glue_args, init_glue_job
+from awsglue.utils import getResolvedOptions
+from glue_utils import init_glue_job
 from pyspark.sql import functions as F
 
 
@@ -32,11 +33,21 @@ def normalized_vendor_name(col: F.Column) -> F.Column:
 
 
 def parse_args(argv):
-    args = get_glue_args(argv)
+    args = getResolvedOptions(
+        argv,
+        [
+            "JOB_NAME",
+            "bronze_db",
+            "silver_db",
+            "ingestion_date",  # YYYY-MM-DD
+            "silver_table_path",
+        ],
+    )
     bronze_table = f"{args['bronze_db']}.vendor"
     silver_table = f"{args['silver_db']}.vendor"
     ingestion_date = args["ingestion_date"]
-    return args, bronze_table, silver_table, ingestion_date
+    silver_table_path = args["silver_table_path"]
+    return args, bronze_table, silver_table, silver_table_path, ingestion_date
 
 
 def init_spark(args):
@@ -77,12 +88,14 @@ def transform_vendor(df):
     return df.dropDuplicates(["vendor_id"])
 
 
-def write_silver(df, spark, silver_table):
+def write_silver(df, spark, silver_table, silver_table_path):
     """
     Create silver table if missing and overwrite only the processed partition.
     """
     if "." not in silver_table:
         raise ValueError(f"Expected database.table format, got: {silver_table}")
+    if not silver_table_path:
+        raise ValueError("silver_table_path is required to create the external table.")
 
     spark.sql(
         f"""
@@ -94,6 +107,7 @@ def write_silver(df, spark, silver_table):
         )
         USING DELTA
         PARTITIONED BY (ingestion_date)
+        LOCATION '{silver_table_path}'
         """
     )
 
@@ -106,11 +120,13 @@ def write_silver(df, spark, silver_table):
 
 
 def main():
-    args, bronze_table, silver_table, ingestion_date = parse_args(sys.argv)
+    args, bronze_table, silver_table, silver_table_path, ingestion_date = parse_args(
+        sys.argv
+    )
     spark, glueContext, job = init_spark(args)
     df = read_bronze(glueContext, bronze_table, ingestion_date)
     df = transform_vendor(df)
-    write_silver(df, spark, silver_table)
+    write_silver(df, spark, silver_table, silver_table_path)
     job.commit()
 
 
