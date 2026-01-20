@@ -1,1 +1,0 @@
-CREATE DATABASE gold LOCATION 's3://week-4-oubt/gold/mdm/';

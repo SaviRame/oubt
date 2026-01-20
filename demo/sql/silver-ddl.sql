@@ -1,1 +1,0 @@
-    CREATE DATABASE silver LOCATION 's3://week-4-oubt/silver/mdm/';

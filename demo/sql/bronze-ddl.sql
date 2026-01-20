@@ -1,7 +1,7 @@
 -- Athena DDL for bronze layer tables
 
 -- Database
-CREATE DATABASE IF NOT EXISTS bronze;
+CREATE DATABASE bronze LOCATION 's3://week-4-oubt/bronze';
 
 -- Zone Table
 CREATE EXTERNAL TABLE IF NOT EXISTS bronze.zone (
