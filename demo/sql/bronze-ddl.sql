@@ -107,3 +107,5 @@ MSCK REPAIR TABLE bronze.rate_code;
 MSCK REPAIR TABLE bronze.payment_type;
 MSCK REPAIR TABLE bronze.vendor;
 MSCK REPAIR TABLE bronze.trips;
+msck repair table gold.fact_trips;
+
