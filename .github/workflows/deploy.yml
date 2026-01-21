@@ -39,6 +39,56 @@ jobs:
       - name: Upload Glue libs
         run: aws s3 cp glue_utils.zip s3://week-4-oubt/code/glue/libs/glue_utils.zip
 
+      - name: Create Glue jobs if missing
+        run: |
+          create_job() {
+            local job_name="$1"
+            local script_path="$2"
+            local default_args="$3"
+            if aws glue get-job --job-name "$job_name" >/dev/null 2>&1; then
+              echo "Glue job exists: $job_name"
+            else
+              aws glue create-job \
+                --name "$job_name" \
+                --role arn:aws:iam::765017559809:role/GlueServiceRole \
+                --command Name=glueetl,ScriptLocation="$script_path" \
+                --glue-version 5.1 \
+                --default-arguments "$default_args"
+            fi
+          }
+
+          create_job "vendor-master" \
+            "s3://week-4-oubt/code/glue/jobs/vendor_master.py" \
+            '{"--job-language":"python","--datalake-formats":"delta","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--additional-python-modules":"recordlinkage","--bronze_db":"bronze","--master_db":"master","--debug_db":"debug","--output_path":"s3://week-4-oubt/master/","--debug_output_path":"s3://week-4-oubt/debug/"}'
+
+          create_job "zone-master" \
+            "s3://week-4-oubt/code/glue/jobs/zone_master.py" \
+            '{"--job-language":"python","--datalake-formats":"delta","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--bronze_db":"bronze","--master_db":"master","--output_path":"s3://week-4-oubt/master/"}'
+
+          create_job "rate-code-ref" \
+            "s3://week-4-oubt/code/glue/jobs/rate_code_ref.py" \
+            '{"--job-language":"python","--datalake-formats":"delta","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--bronze_db":"bronze","--master_db":"master","--output_path":"s3://week-4-oubt/master/"}'
+
+          create_job "payment-type-ref" \
+            "s3://week-4-oubt/code/glue/jobs/payment_type_ref.py" \
+            '{"--job-language":"python","--datalake-formats":"delta","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--bronze_db":"bronze","--master_db":"master","--output_path":"s3://week-4-oubt/master/"}'
+
+          create_job "trips-processed" \
+            "s3://week-4-oubt/code/glue/jobs/trips_processed.py" \
+            '{"--job-language":"python","--datalake-formats":"delta","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--bronze_db":"bronze","--master_db":"master","--silver_db":"silver","--output_path":"s3://week-4-oubt/silver/"}'
+
+          create_job "fact-trips" \
+            "s3://week-4-oubt/code/glue/jobs/fact_trips.py" \
+            '{"--job-language":"python","--datalake-formats":"delta","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--silver_db":"silver","--gold_db":"gold","--output_path":"s3://week-4-oubt/gold/","--start_date":"2026-01-01","--end_date":"2026-01-31"}'
+
+          create_job "export-master-parquet" \
+            "s3://week-4-oubt/code/glue/jobs/export_master_parquet.py" \
+            '{"--job-language":"python","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--master_db":"master","--output_path":"s3://week-4-oubt/staging/redshift/master","--current_only":"true"}'
+
+          create_job "export-fact-parquet" \
+            "s3://week-4-oubt/code/glue/jobs/export_fact_parquet.py" \
+            '{"--job-language":"python","--extra-py-files":"s3://week-4-oubt/code/glue/libs/glue_utils.zip","--gold_db":"gold","--output_path":"s3://week-4-oubt/staging/redshift/gold"}'
+
       - name: Upload Step Functions definition
         run: aws s3 cp demo/orchestration/state_machine.json s3://week-4-oubt/code/state_machine/state_machine.json
 
