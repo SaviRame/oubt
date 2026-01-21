@@ -184,6 +184,13 @@ aws s3 cp demo/src/fact_trips.py s3://week-4-oubt/code/glue/jobs/fact_trips.py
 aws s3 cp glue_utils.zip s3://week-4-oubt/code/glue/libs/glue_utils.zip
 ```
 
+## Delete current table (delta)
+
+```bash
+aws glue delete-table --database-name gold --name fact_trips
+aws s3 rm s3://week-4-oubt/gold/fact_trips --recursive
+```
+
 ## Create the Glue job
 
 ```bash
@@ -209,8 +216,73 @@ aws glue create-job \
 ```bash
 aws glue start-job-run \
   --job-name fact-trips \
-  --arguments '{
+  --arguments '{  
     "--start_date": "2025-08-01",
     "--end_date": "2025-08-31"
   }'
+```
+
+# Glue Job: export-master-parquet
+
+Exports master tables to Parquet for Redshift COPY.
+
+## Upload job script and dependency
+
+```bash
+zip glue_utils.zip demo/src/glue_utils.py
+aws s3 cp demo/src/export_master_parquet.py s3://week-4-oubt/code/glue/jobs/export_master_parquet.py
+aws s3 cp glue_utils.zip s3://week-4-oubt/code/glue/libs/glue_utils.zip
+```
+
+## Create the Glue job
+
+```bash
+aws glue create-job \
+  --name export-master-parquet \
+  --role arn:aws:iam::765017559809:role/GlueServiceRole \
+  --command Name=glueetl,ScriptLocation=s3://week-4-oubt/code/glue/jobs/export_master_parquet.py \
+  --glue-version 5.1 \
+  --default-arguments '{
+    "--job-language": "python",
+    "--extra-py-files": "s3://week-4-oubt/code/glue/libs/glue_utils.zip",
+    "--master_db": "master",
+    "--output_path": "s3://week-4-oubt/staging/redshift/master",
+    "--current_only": "true"
+  }'
+```
+
+# Glue Job: export-fact-parquet
+
+Exports fact_trips to Parquet for Redshift COPY.
+
+## Upload job script and dependency
+
+```bash
+zip glue_utils.zip demo/src/glue_utils.py
+aws s3 cp demo/src/export_fact_parquet.py s3://week-4-oubt/code/glue/jobs/export_fact_parquet.py
+aws s3 cp glue_utils.zip s3://week-4-oubt/code/glue/libs/glue_utils.zip
+```
+
+## Create the Glue job
+
+```bash
+aws glue create-job \
+  --name export-fact-parquet \
+  --role arn:aws:iam::765017559809:role/GlueServiceRole \
+  --command Name=glueetl,ScriptLocation=s3://week-4-oubt/code/glue/jobs/export_fact_parquet.py \
+  --glue-version 5.1 \
+  --default-arguments '{
+    "--job-language": "python",
+    "--extra-py-files": "s3://week-4-oubt/code/glue/libs/glue_utils.zip",
+    "--gold_db": "gold",
+    "--output_path": "s3://week-4-oubt/staging/redshift/gold"
+  }'
+```
+
+# Redshift tables (DDL)
+
+Run this once in the Redshift query editor:
+
+```sql
+-- demo/sql/redshift-ddl.sql
 ```
