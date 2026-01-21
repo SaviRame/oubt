@@ -1,0 +1,448 @@
+{
+  "Comment": "Orchestrate Glue jobs for bronze -> master -> silver -> gold",
+  "StartAt": "RunMasterJobs",
+  "States": {
+    "RunMasterJobs": {
+      "Type": "Parallel",
+      "ResultPath": "$.master_results",
+      "Branches": [
+        {
+          "StartAt": "VendorMaster",
+          "States": {
+            "VendorMaster": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "vendor-master",
+                "Arguments": {
+                  "--ingestion_date.$": "$.ingestion_date"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Glue.ConcurrentRunsExceededException",
+                    "Glue.AWSGlueException",
+                    "States.Timeout"
+                  ],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 1,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "ZoneMaster",
+          "States": {
+            "ZoneMaster": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "zone-master",
+                "Arguments": {
+                  "--ingestion_date.$": "$.ingestion_date"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Glue.ConcurrentRunsExceededException",
+                    "Glue.AWSGlueException",
+                    "States.Timeout"
+                  ],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 1,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "RateCodeRef",
+          "States": {
+            "RateCodeRef": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "rate-code-ref",
+                "Arguments": {
+                  "--ingestion_date.$": "$.ingestion_date"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Glue.ConcurrentRunsExceededException",
+                    "Glue.AWSGlueException",
+                    "States.Timeout"
+                  ],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 1,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "PaymentTypeRef",
+          "States": {
+            "PaymentTypeRef": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::glue:startJobRun.sync",
+              "Parameters": {
+                "JobName": "payment-type-ref",
+                "Arguments": {
+                  "--ingestion_date.$": "$.ingestion_date"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Glue.ConcurrentRunsExceededException",
+                    "Glue.AWSGlueException",
+                    "States.Timeout"
+                  ],
+                  "IntervalSeconds": 30,
+                  "MaxAttempts": 1,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "ExportMasterParquet"
+    },
+    "ExportMasterParquet": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "ResultPath": "$.export_master_parquet",
+      "Parameters": {
+        "JobName": "export-master-parquet",
+        "Arguments": {
+          "--master_db": "master",
+          "--output_path": "s3://week-4-oubt/staging/redshift/master",
+          "--current_only": "true"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException",
+            "Glue.AWSGlueException",
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "RedshiftCopyMasterParallel"
+    },
+    "RedshiftCopyMasterParallel": {
+      "Type": "Parallel",
+      "ResultPath": "$.redshift_master_copy",
+      "Branches": [
+        {
+          "StartAt": "CopyDimVendor",
+          "States": {
+            "CopyDimVendor": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "redshift-data-api-runner",
+                "Payload": {
+                  "workgroup_name": "nyc-txaxi-wg",
+                  "database": "demo",
+                  "secret_arn": "arn:aws:secretsmanager:us-east-1:765017559809:secret:redshift-admin-demo-ipFq13",
+                  "sql": "TRUNCATE TABLE master.dim_vendor; COPY master.dim_vendor FROM 's3://week-4-oubt/staging/redshift/master/dim_vendor/' IAM_ROLE 'arn:aws:iam::765017559809:role/redshift-copy-role' FORMAT AS PARQUET;"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 5,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CopyZoneMaster",
+          "States": {
+            "CopyZoneMaster": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "redshift-data-api-runner",
+                "Payload": {
+                  "workgroup_name": "nyc-txaxi-wg",
+                  "database": "demo",
+                  "secret_arn": "arn:aws:secretsmanager:us-east-1:765017559809:secret:redshift-admin-demo-ipFq13",
+                  "sql": "TRUNCATE TABLE master.zone_master; COPY master.zone_master FROM 's3://week-4-oubt/staging/redshift/master/zone_master/' IAM_ROLE 'arn:aws:iam::765017559809:role/redshift-copy-role' FORMAT AS PARQUET;"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 5,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CopyPaymentTypeRef",
+          "States": {
+            "CopyPaymentTypeRef": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "redshift-data-api-runner",
+                "Payload": {
+                  "workgroup_name": "nyc-txaxi-wg",
+                  "database": "demo",
+                  "secret_arn": "arn:aws:secretsmanager:us-east-1:765017559809:secret:redshift-admin-demo-ipFq13",
+                  "sql": "TRUNCATE TABLE master.payment_type_ref; COPY master.payment_type_ref FROM 's3://week-4-oubt/staging/redshift/master/payment_type_ref/' IAM_ROLE 'arn:aws:iam::765017559809:role/redshift-copy-role' FORMAT AS PARQUET;"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 5,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "CopyRateCodeRef",
+          "States": {
+            "CopyRateCodeRef": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "redshift-data-api-runner",
+                "Payload": {
+                  "workgroup_name": "nyc-txaxi-wg",
+                  "database": "demo",
+                  "secret_arn": "arn:aws:secretsmanager:us-east-1:765017559809:secret:redshift-admin-demo-ipFq13",
+                  "sql": "TRUNCATE TABLE master.rate_code_ref; COPY master.rate_code_ref FROM 's3://week-4-oubt/staging/redshift/master/rate_code_ref/' IAM_ROLE 'arn:aws:iam::765017559809:role/redshift-copy-role' FORMAT AS PARQUET;"
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException"
+                  ],
+                  "IntervalSeconds": 5,
+                  "MaxAttempts": 2,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "RedshiftCopyFailed"
+        }
+      ],
+      "Next": "TripsProcessed"
+    },
+    "TripsProcessed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "ResultPath": "$.trips_processed_result",
+      "Parameters": {
+        "JobName": "trips-processed",
+        "Arguments": {
+          "--ingestion_date.$": "$.ingestion_date"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException",
+            "Glue.AWSGlueException",
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "FactTrips"
+    },
+    "FactTrips": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "ResultPath": "$.fact_trips_result",
+      "Parameters": {
+        "JobName": "fact-trips",
+        "Arguments": {
+          "--start_date.$": "$.start_date",
+          "--end_date.$": "$.end_date"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException",
+            "Glue.AWSGlueException",
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 1,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "ExportFactParquet"
+    },
+    "ExportFactParquet": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "ResultPath": "$.export_fact_parquet",
+      "Parameters": {
+        "JobName": "export-fact-parquet",
+        "Arguments": {
+          "--gold_db": "gold",
+          "--output_path": "s3://week-4-oubt/staging/redshift/gold",
+          "--start_date.$": "$.start_date",
+          "--end_date.$": "$.end_date"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException",
+            "Glue.AWSGlueException",
+            "States.Timeout"
+          ],
+          "IntervalSeconds": 60,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "RedshiftCopyFactTrips"
+    },
+    "RedshiftCopyFactTrips": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "redshift-data-api-runner",
+        "Payload": {
+          "workgroup_name": "nyc-txaxi-wg",
+          "database": "demo",
+          "secret_arn": "arn:aws:secretsmanager:us-east-1:765017559809:secret:redshift-admin-demo-ipFq13",
+          "sql": "TRUNCATE TABLE gold.fact_trips; COPY gold.fact_trips FROM 's3://week-4-oubt/staging/redshift/gold/fact_trips/' IAM_ROLE 'arn:aws:iam::765017559809:role/redshift-copy-role' FORMAT AS PARQUET;"
+        }
+      },
+      "ResultPath": "$.redshift.fact_trips",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "RedshiftCopyFailed"
+        }
+      ],
+      "Next": "QuickSightRefresh"
+    },
+    "QuickSightRefresh": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "quicksight-refresh",
+        "Payload": {
+          "account_id": "765017559809",
+          "dataset_ids": [
+            "57533267-a60d-4c92-bb53-15cb7cc05d03",
+            "dac41e58-1c9a-449e-9701-2b2e4609a696",
+            "73c4f6e0-fd32-4868-8145-e0fd28d7e839",
+            "a588c0b5-bfac-42eb-9091-d0b34bf96785",
+            "004afc76-daae-45dc-a3d9-01248b1bcc12"
+          ]
+        }
+      },
+      "ResultPath": "$.quicksight_refresh",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "RedshiftCopyFailed"
+        }
+      ],
+      "Next": "EndState"
+    },
+    "RedshiftCopyFailed": {
+      "Type": "Fail",
+      "Error": "RedshiftCopyFailed",
+      "Cause": "Redshift COPY failed or was aborted."
+    },
+    "EndState": {
+      "Type": "Succeed"
+    }
+  }
+}

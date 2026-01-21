@@ -1,0 +1,51 @@
+name: Deploy Demo Assets to S3
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::765017559809:role/GitHubActionsDay11SqlDeployRole
+          aws-region: us-east-1
+
+      - name: Package Glue utils
+        run: zip -j glue_utils.zip demo/src/glue_utils.py
+
+      - name: Package Lambda zips
+        run: |
+          zip -j redshift_data_api.zip demo/lambda/redshift_data_api.py
+          zip -j quicksight_refresh.zip demo/lambda/quicksight_refresh.py
+
+      - name: Upload Glue scripts
+        run: |
+          aws s3 cp demo/src s3://week-4-oubt/code/glue/jobs/ \
+            --recursive --exclude "*" --include "*.py"
+
+      - name: Upload Glue libs
+        run: aws s3 cp glue_utils.zip s3://week-4-oubt/code/glue/libs/glue_utils.zip
+
+      - name: Upload Step Functions definition
+        run: aws s3 cp demo/orchestration/state_machine.json s3://week-4-oubt/code/state_machine/state_machine.json
+
+      - name: Upload SQL files
+        run: aws s3 cp demo/sql s3://week-4-oubt/code/sql/ --recursive --exclude "*" --include "*.sql"
+
+      - name: Upload Lambda packages
+        run: |
+          aws s3 cp redshift_data_api.zip s3://week-4-oubt/code/lambda/redshift_data_api.zip
+          aws s3 cp quicksight_refresh.zip s3://week-4-oubt/code/lambda/quicksight_refresh.zip

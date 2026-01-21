@@ -1,4 +1,5 @@
 import time
+
 import boto3
 
 s3 = boto3.client("s3")
@@ -12,14 +13,14 @@ ATHENA_WORKGROUP = "primary"
 ATHENA_OUTPUT = "s3://day11-12-sql-glue/athena-query-results/"
 
 # file execution order
-SETUP_FILES = ["setup/00_raw_tables.sql"]
+SETUP_FILES = ["setup/1-raw-tables.sql"]
 TRANSFORM_FILES = [
-    "transforms/01_taxi_trip_enriched.sql",
-    "transforms/02_daily_pickup_zone_metrics.sql",
+    "transforms/1-taxi-trip-enriched.sql",
+    "transforms/2_daily_pickup_zone_metrics.sql",
 ]
 TEST_FILES = [
-    "tests/01_test_taxi_trip_enriched.sql",
-    "tests/02_test_daily_pickup_zone_metrics.sql",
+    "tests/1_test_taxi_trip_enriched.sql",
+    "tests/2_test_daily_pickup_zone_metrics.sql",
 ]
 
 REPAIR_TABLES = [
@@ -29,6 +30,7 @@ REPAIR_TABLES = [
 
 
 def read_s3_text(bucket: str, key: str) -> str:
+    print(f"DEBUG: Attempting to read s3://{bucket}/{key}")
     obj = s3.get_object(Bucket=bucket, Key=key)
     return obj["Body"].read().decode("utf-8")
 
@@ -91,7 +93,9 @@ def run_test_file(relative_path: str, database: str):
     # Tests should be a single SELECT (your UNION ALL pattern)
     stmt_list = split_sql_statements(sql_text)
     if len(stmt_list) != 1:
-        raise RuntimeError(f"Test file must contain exactly 1 statement: {relative_path}")
+        raise RuntimeError(
+            f"Test file must contain exactly 1 statement: {relative_path}"
+        )
 
     qid = run_athena_query(stmt_list[0], database)
     wait_for_query(qid)

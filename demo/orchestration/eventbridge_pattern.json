@@ -1,0 +1,22 @@
+{
+  "source": [
+    "aws.s3"
+  ],
+  "detail-type": [
+    "Object Created"
+  ],
+  "detail": {
+    "bucket": {
+      "name": [
+        "week-4-oubt"
+      ]
+    },
+    "object": {
+      "key": [
+        {
+          "prefix": "bronze/"
+        }
+      ]
+    }
+  }
+}
